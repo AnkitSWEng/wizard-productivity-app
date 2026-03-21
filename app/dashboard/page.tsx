@@ -5,12 +5,23 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-export default function DashboardPage() {
+type Task = {
+  _id: string;
+  title: string;
+  totalTimeSeconds: number;
+  isActive: boolean;
+  startedAt: number | null;
+};
+
+export default function DashboardPage(): JSX.Element {
   const { status } = useSession();
   const router = useRouter();
 
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState("");
+  const [history, setHistory] = useState<Task[]>([]);
+  const [selectedDate, setSelectedDate] = useState("");
+
   const [, forceUpdate] = useState(0);
 
   useEffect(() => {
@@ -21,11 +32,11 @@ export default function DashboardPage() {
     if (status === "authenticated") {
       fetchTasks();
     }
-  }, [status]);
+  }, [status, router]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      forceUpdate((n) => n + 1); // re-render every second
+      forceUpdate((n) => n + 1);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -65,7 +76,7 @@ export default function DashboardPage() {
     fetchTasks();
   }
 
-  function getLiveTime(task: any) {
+  function getLiveTime(task: Task) {
     if (!task.startedAt) return task.totalTimeSeconds;
 
     const live = Math.floor((Date.now() - task.startedAt) / 1000);
@@ -81,7 +92,11 @@ export default function DashboardPage() {
   }
 
   if (status === "loading") {
-    return <div className="h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -102,7 +117,10 @@ export default function DashboardPage() {
 
       <ul className="space-y-3">
         {tasks.map((t) => (
-          <li key={t._id} className="border p-3 flex justify-between items-center">
+          <li
+            key={t._id}
+            className="border p-3 flex justify-between items-center"
+          >
             <div>
               <div>{t.title}</div>
               <div className="text-sm text-gray-500">
@@ -110,33 +128,66 @@ export default function DashboardPage() {
               </div>
             </div>
 
-<div>
-  {t.isActive ? (
-    <button
-      onClick={() => pauseTask(t._id)}
-      className="bg-yellow-500 px-3 py-1 text-white"
-    >
-      Pause
-    </button>
-  ) : t.totalTimeSeconds > 0 ? (
-    <button
-      onClick={() => startTask(t._id)}
-      className="bg-blue-600 px-3 py-1 text-white"
-    >
-      Resume
-    </button>
-  ) : (
-    <button
-      onClick={() => startTask(t._id)}
-      className="bg-green-600 px-3 py-1 text-white"
-    >
-      Start
-    </button>
-  )}
-</div>
+            <div>
+              {t.isActive ? (
+                <button
+                  onClick={() => pauseTask(t._id)}
+                  className="bg-yellow-500 px-3 py-1 text-white"
+                >
+                  Pause
+                </button>
+              ) : t.totalTimeSeconds > 0 ? (
+                <button
+                  onClick={() => startTask(t._id)}
+                  className="bg-blue-600 px-3 py-1 text-white"
+                >
+                  Resume
+                </button>
+              ) : (
+                <button
+                  onClick={() => startTask(t._id)}
+                  className="bg-green-600 px-3 py-1 text-white"
+                >
+                  Start
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
+
+      <div className="mt-10">
+        <h2 className="text-lg mb-2">History</h2>
+
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={async (e) => {
+            const date = e.target.value;
+            setSelectedDate(date);
+
+            if (!date) return;
+
+            const res = await fetch(`/api/tasks/history?date=${date}`);
+            const data = await res.json();
+
+            setHistory(data);
+          }}
+          className="border px-2 py-1"
+        />
+
+        <ul className="mt-4 space-y-2">
+          {history.length === 0 && selectedDate && (
+            <li>No tasks found</li>
+          )}
+
+          {history.map((t) => (
+            <li key={t._id} className="border p-2">
+              {t.title} - {formatTime(t.totalTimeSeconds)}
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <button onClick={() => signOut()} className="mt-6 text-red-500">
         Logout
