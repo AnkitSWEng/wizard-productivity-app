@@ -1,0 +1,146 @@
+// /app/dashboard/page.tsx
+"use client";
+
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+export default function DashboardPage() {
+  const { status } = useSession();
+  const router = useRouter();
+
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [title, setTitle] = useState("");
+  const [, forceUpdate] = useState(0);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/");
+    }
+
+    if (status === "authenticated") {
+      fetchTasks();
+    }
+  }, [status]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      forceUpdate((n) => n + 1); // re-render every second
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  async function fetchTasks() {
+    const res = await fetch("/api/tasks");
+    const data = await res.json();
+    setTasks(data);
+  }
+
+  async function addTask() {
+    if (!title) return;
+
+    await fetch("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    });
+
+    setTitle("");
+    fetchTasks();
+  }
+
+  async function startTask(taskId: string) {
+    await fetch("/api/tasks/start", {
+      method: "POST",
+      body: JSON.stringify({ taskId }),
+    });
+    fetchTasks();
+  }
+
+  async function pauseTask(taskId: string) {
+    await fetch("/api/tasks/pause", {
+      method: "POST",
+      body: JSON.stringify({ taskId }),
+    });
+    fetchTasks();
+  }
+
+  function getLiveTime(task: any) {
+    if (!task.startedAt) return task.totalTimeSeconds;
+
+    const live = Math.floor((Date.now() - task.startedAt) / 1000);
+    return task.totalTimeSeconds + live;
+  }
+
+  function formatTime(seconds: number) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+
+    return `${h}h ${m}m ${s}s`;
+  }
+
+  if (status === "loading") {
+    return <div className="h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  return (
+    <main className="p-10">
+      <h1 className="text-xl mb-4">Tasks</h1>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="border px-2 py-1"
+          placeholder="New task"
+        />
+        <button onClick={addTask} className="bg-black text-white px-3">
+          Add
+        </button>
+      </div>
+
+      <ul className="space-y-3">
+        {tasks.map((t) => (
+          <li key={t._id} className="border p-3 flex justify-between items-center">
+            <div>
+              <div>{t.title}</div>
+              <div className="text-sm text-gray-500">
+                {formatTime(getLiveTime(t))}
+              </div>
+            </div>
+
+<div>
+  {t.isActive ? (
+    <button
+      onClick={() => pauseTask(t._id)}
+      className="bg-yellow-500 px-3 py-1 text-white"
+    >
+      Pause
+    </button>
+  ) : t.totalTimeSeconds > 0 ? (
+    <button
+      onClick={() => startTask(t._id)}
+      className="bg-blue-600 px-3 py-1 text-white"
+    >
+      Resume
+    </button>
+  ) : (
+    <button
+      onClick={() => startTask(t._id)}
+      className="bg-green-600 px-3 py-1 text-white"
+    >
+      Start
+    </button>
+  )}
+</div>
+          </li>
+        ))}
+      </ul>
+
+      <button onClick={() => signOut()} className="mt-6 text-red-500">
+        Logout
+      </button>
+    </main>
+  );
+}
