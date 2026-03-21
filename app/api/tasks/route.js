@@ -2,6 +2,7 @@
 import { connectDB } from "@/lib/db";
 import Task from "@/models/Task";
 import { getServerSession } from "next-auth";
+import { normalizeTask } from "@/lib/normalizeTasks";
 
 export async function GET() {
   await connectDB();
@@ -14,12 +15,21 @@ export async function GET() {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  // fetch all user tasks
   const tasks = await Task.find({
     userId: session.user.email,
-    date: today,
   });
 
-  return Response.json(tasks);
+  // normalize all tasks (close previous day running tasks)
+  for (const task of tasks) {
+    normalizeTask(task);
+    await task.save();
+  }
+
+  // return only today's tasks
+  const todayTasks = tasks.filter((t) => t.date === today);
+
+  return Response.json(todayTasks);
 }
 
 export async function POST(req) {

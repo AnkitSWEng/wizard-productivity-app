@@ -2,9 +2,11 @@
 import { connectDB } from "@/lib/db";
 import Task from "@/models/Task";
 import { getServerSession } from "next-auth";
+import { normalizeTask } from "@/lib/normalizeTasks";
 
 export async function POST(req) {
   await connectDB();
+
   const session = await getServerSession();
 
   if (!session) {
@@ -13,13 +15,22 @@ export async function POST(req) {
 
   const { taskId } = await req.json();
 
-  // ensure only one active task per user
-  await Task.updateMany(
-    { userId: session.user.email, isActive: true },
-    { isActive: false, startedAt: null }
-  );
+  // stop any active tasks
+  const activeTasks = await Task.find({
+    userId: session.user.email,
+    isActive: true,
+  });
+
+  for (const t of activeTasks) {
+    normalizeTask(t);
+    t.isActive = false;
+    t.startedAt = null;
+    await t.save();
+  }
 
   const task = await Task.findById(taskId);
+
+  normalizeTask(task);
 
   task.isActive = true;
   task.startedAt = Date.now();

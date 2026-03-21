@@ -2,9 +2,11 @@
 import { connectDB } from "@/lib/db";
 import Task from "@/models/Task";
 import { getServerSession } from "next-auth";
+import { normalizeTask } from "@/lib/normalizeTasks";
 
 export async function POST(req) {
   await connectDB();
+
   const session = await getServerSession();
 
   if (!session) {
@@ -14,6 +16,8 @@ export async function POST(req) {
   const { taskId } = await req.json();
 
   const task = await Task.findById(taskId);
+
+  normalizeTask(task);
 
   if (task.startedAt) {
     const elapsed = Math.floor((Date.now() - task.startedAt) / 1000);
