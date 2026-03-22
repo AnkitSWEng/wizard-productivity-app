@@ -17,6 +17,10 @@ export async function POST(req) {
 
   const task = await Task.findById(taskId);
 
+  if (!task) {
+    return Response.json({ error: "Task not found" }, { status: 404 });
+  }
+
   normalizeTask(task);
 
   if (task.startedAt) {

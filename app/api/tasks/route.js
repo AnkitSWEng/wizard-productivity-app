@@ -43,14 +43,34 @@ export async function POST(req) {
 
   const { title } = await req.json();
 
-  const task = await Task.create({
-    userId: session.user.email,
-    title,
-    totalTimeSeconds: 0,
-    isActive: false,
-    startedAt: null,
-    date: new Date().toISOString().slice(0, 10),
-  });
+  if (!title || !title.trim()) {
+    return Response.json({ error: "Invalid title" }, { status: 400 });
+  }
 
-  return Response.json(task);
+  const today = new Date().toISOString().slice(0, 10);
+  const normalizedTitle = title.trim().toLowerCase();
+
+  try {
+    const task = await Task.create({
+      userId: session.user.email,
+      title: title.trim(),
+      normalizedTitle,
+      totalTimeSeconds: 0,
+      isActive: false,
+      startedAt: null,
+      date: today,
+    });
+
+    return Response.json(task);
+  } catch (err) {
+    // duplicate key error
+    if (err.code === 11000) {
+      return Response.json(
+        { error: "Task with same name already exists" },
+        { status: 400 }
+      );
+    }
+
+    return Response.json({ error: "Server error" }, { status: 500 });
+  }
 }

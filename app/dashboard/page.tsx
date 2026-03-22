@@ -21,8 +21,9 @@ export default function DashboardPage(): JSX.Element {
   const [title, setTitle] = useState("");
   const [history, setHistory] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
-
+  const [errorMsg, setErrorMsg] = useState("");
   const [, forceUpdate] = useState(0);
+  const [taskError, setTaskError] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -45,20 +46,34 @@ export default function DashboardPage(): JSX.Element {
   async function fetchTasks() {
     const res = await fetch("/api/tasks");
     const data = await res.json();
-    setTasks(data);
+
+    if (Array.isArray(data)) {
+      setTasks(data);
+    } else {
+      setTasks([]);
+    }
   }
 
   async function addTask() {
-    if (!title) return;
+  if (!title.trim()) return;
 
-    await fetch("/api/tasks", {
-      method: "POST",
-      body: JSON.stringify({ title }),
-    });
+  setTaskError("");
 
-    setTitle("");
-    fetchTasks();
+  const res = await fetch("/api/tasks", {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    setTaskError(data.error || "Failed to add task");
+    return;
   }
+
+  setTitle("");
+  fetchTasks();
+}
 
   async function startTask(taskId: string) {
     await fetch("/api/tasks/start", {
@@ -114,6 +129,9 @@ export default function DashboardPage(): JSX.Element {
           Add
         </button>
       </div>
+      {taskError && (
+  <div className="text-red-500 mt-2">{taskError}</div>
+)}
 
       <ul className="space-y-3">
         {tasks.map((t) => (
@@ -160,21 +178,39 @@ export default function DashboardPage(): JSX.Element {
         <h2 className="text-lg mb-2">History</h2>
 
         <input
-          type="date"
-          value={selectedDate}
-          onChange={async (e) => {
-            const date = e.target.value;
-            setSelectedDate(date);
+  type="date"
+  value={selectedDate}
+  max={new Date().toISOString().slice(0, 10)}
+  onChange={async (e) => {
+    const date = e.target.value;
 
-            if (!date) return;
+    if (!date) return;
 
-            const res = await fetch(`/api/tasks/history?date=${date}`);
-            const data = await res.json();
+    setSelectedDate(date);
+    setErrorMsg("");
 
-            setHistory(data);
-          }}
-          className="border px-2 py-1"
-        />
+    const res = await fetch(`/api/tasks/history?date=${date}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setHistory([]);
+      setErrorMsg("Please select a valid previous date");
+      return;
+    }
+
+    if (!Array.isArray(data)) {
+      setHistory([]);
+      setErrorMsg("Please select a valid previous date");
+      return;
+    }
+
+    setHistory(data);
+  }}
+  className="border px-2 py-1"
+/>
+  {errorMsg && (
+    <div className="text-red-500 mt-2">{errorMsg}</div>
+  )}
 
         <ul className="mt-4 space-y-2">
           {history.length === 0 && selectedDate && (
